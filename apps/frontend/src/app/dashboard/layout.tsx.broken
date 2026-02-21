@@ -1,0 +1,319 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import Link from 'next/link';
+import Image from 'next/image';
+import { useAuthStore } from '@/store/auth';
+import {
+  Wallet, TrendingUp, TrendingDown, PiggyBank, Target, BarChart3, Settings, LogOut,
+  Bell, Gift, Camera, Book, Building, Shield, Calculator, Award, FileText, Globe,
+  CreditCard, Home as HomeIcon, Mic, MessageSquare, Users, Receipt, Brain, Sparkles,
+  Zap, Repeat, Briefcase, DollarSign, Coins, Flame, ShoppingCart
+} from 'lucide-react';
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const { isAuthenticated, user, logout } = useAuthStore();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted && !isAuthenticated) {
+      router.push('/login');
+    }
+  }, [mounted, isAuthenticated, router]);
+
+  if (!mounted || !isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  const handleLogout = () => {
+    logout();
+    router.push('/login');
+  };
+
+  const tier = user?.incomeTier || 'LOW';
+  const tierName = tier === 'LOW' ? 'Basic' : tier === 'MIDDLE' ? 'Standard' : 'Premium';
+
+  // Low Income - Categorized Navigation
+  const lowIncomeBasics = [
+    { icon: HomeIcon, label: 'Home', href: '/dashboard/low' },
+    { icon: Wallet, label: 'Accounts', href: '/dashboard/accounts' },
+    { icon: TrendingUp, label: 'Transactions', href: '/dashboard/transactions' },
+  ];
+
+  const lowIncomeBudgeting = [
+    { icon: PiggyBank, label: 'Budgets', href: '/dashboard/budgets' },
+    { icon: Target, label: 'Goals', href: '/dashboard/goals' },
+    { icon: Coins, label: 'Micro Savings', href: '/dashboard/micro-savings' },
+    { icon: Shield, label: 'Expense Limiter', href: '/dashboard/expense-limiter' },
+    { icon: Wallet, label: 'Cash Envelope', href: '/dashboard/cash-envelope' },
+    { icon: Flame, label: 'No-Spend Challenge', href: '/dashboard/no-spend-challenge' },
+    { icon: TrendingUp, label: 'Income Boost Ideas', href: '/dashboard/income-boost' },
+    { icon: ShoppingCart, label: 'Price Comparison', href: '/dashboard/price-comparison' },
+  ];
+
+  const lowIncomeTools = [
+    { icon: Receipt, label: 'Receipt Scanner', href: '/dashboard/receipt-scan' },
+    { icon: Mic, label: 'Voice Expense', href: '/dashboard/voice-expense' },
+    { icon: MessageSquare, label: 'SMS Capture', href: '/dashboard/sms-capture' },
+    { icon: Bell, label: 'Bill Reminders', href: '/dashboard/reminders' },
+    { icon: Users, label: 'Bill Splitter', href: '/dashboard/split' },
+  ];
+
+  const lowIncomeHelp = [
+    { icon: Gift, label: 'Govt Schemes', href: '/dashboard/schemes' },
+    { icon: Book, label: 'Learn Finance', href: '/dashboard/learn' },
+  ];
+
+  // Middle Income Navigation
+  // Middle Income - Categorized Navigation
+  const middleIncomeCore = [
+    { icon: HomeIcon, label: 'Home', href: '/dashboard/middle' },
+    { icon: Wallet, label: 'Accounts', href: '/dashboard/accounts' },
+    { icon: TrendingUp, label: 'Transactions', href: '/dashboard/transactions' },
+    { icon: PiggyBank, label: 'Budgets', href: '/dashboard/budgets' },
+    { icon: Target, label: 'Goals', href: '/dashboard/goals' },
+    { icon: BarChart3, label: 'Analytics', href: '/dashboard/analytics' },
+  ];
+
+  const middleIncomeGrowth = [
+    { icon: Briefcase, label: 'Side Hustle', href: '/dashboard/side-hustle' },
+    { icon: Calculator, label: 'EMI Calculator', href: '/dashboard/emi-calculator' },
+    { icon: Zap, label: 'Expense Predictor', href: '/dashboard/expense-predictor' },
+    { icon: Repeat, label: 'Subscriptions', href: '/dashboard/subscriptions' },
+    { icon: TrendingDown, label: 'Debt Payoff', href: '/dashboard/debt-payoff' },
+    { icon: DollarSign, label: 'Salary Negotiator', href: '/dashboard/salary-negotiator' },
+  ];
+
+  const middleIncomePlanning = [
+    { icon: CreditCard, label: 'Credit Score Sim', href: '/dashboard/credit-score' },
+    { icon: PiggyBank, label: 'Retirement Plan', href: '/dashboard/retirement' },
+    { icon: TrendingDown, label: 'Tax Harvesting', href: '/dashboard/tax-harvesting' },
+  ];
+
+  // High Income Navigation
+  const highIncomeNav = [
+    { icon: HomeIcon, label: 'Home', href: '/dashboard/high' },
+    { icon: Brain, label: 'AI Coach', href: '/dashboard/ai' },
+    { icon: Sparkles, label: 'Personality Quiz', href: '/dashboard/personality' },
+    { icon: TrendingUp, label: 'Net Worth Tracker', href: '/dashboard/overview' },
+    { icon: Award, label: 'Portfolio Rebalancer', href: '/dashboard/portfolio' },
+    { icon: Wallet, label: 'Accounts', href: '/dashboard/accounts' },
+    { icon: Target, label: 'Goals', href: '/dashboard/goals' },
+    { icon: BarChart3, label: 'Analytics', href: '/dashboard/analytics' },
+    { icon: Building, label: 'Investments', href: '/dashboard/investments' },
+    { icon: Shield, label: 'Insurance', href: '/dashboard/insurance' },
+    { icon: Calculator, label: 'Tax Planning', href: '/dashboard/tax' },
+    { icon: Globe, label: 'Global Assets', href: '/dashboard/international' },
+    { icon: Zap, label: 'Expense Predictor', href: '/dashboard/expense-predictor' },
+    { icon: Repeat, label: 'Subscriptions', href: '/dashboard/subscriptions' },
+  ];
+
+  // Smart Tools (for middle/high)
+  const smartTools = [
+    { icon: Receipt, label: 'Receipt Scanner', href: '/dashboard/receipt-scan' },
+    { icon: Mic, label: 'Voice Expense', href: '/dashboard/voice-expense' },
+    { icon: MessageSquare, label: 'SMS Capture', href: '/dashboard/sms-capture' },
+    { icon: Bell, label: 'Bill Reminders', href: '/dashboard/reminders' },
+    { icon: Users, label: 'Bill Splitter', href: '/dashboard/split' },
+  ];
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <aside className="fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 shadow-sm overflow-y-auto">
+        <div className="flex flex-col h-full">
+          <div className="p-6 border-b">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 flex-shrink-0 rounded-full overflow-hidden border-2 border-blue-200 shadow-md">
+                <Image src="/logo.png" alt="MoneyNext" width={40} height={40} className="object-cover w-full h-full" />
+              </div>
+              <div>
+                <h1 className="text-lg font-bold text-gray-900">MoneyNext</h1>
+                <p className="text-xs text-gray-500">{tierName} Plan</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex-1 px-3 py-4">
+            {/* LOW INCOME - CATEGORIZED SIDEBAR */}
+            {tier === 'LOW' && (
+              <>
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-3">Basics</div>
+                <nav className="space-y-1">
+                  {lowIncomeBasics.map((item) => {
+                    const isActive = pathname === item.href;
+                    return (
+                      <Link key={item.href} href={item.href}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition ${isActive ? 'bg-green-50 text-green-600 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}>
+                        <item.icon className="w-5 h-5" />
+                        <span>{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </nav>
+
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-3 mt-6">Budgeting</div>
+                <nav className="space-y-1">
+                  {lowIncomeBudgeting.map((item) => {
+                    const isActive = pathname === item.href;
+                    return (
+                      <Link key={item.href} href={item.href}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition ${isActive ? 'bg-green-50 text-green-600 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}>
+                        <item.icon className="w-5 h-5" />
+                        <span>{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </nav>
+
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-3 mt-6">Smart Tools</div>
+                <nav className="space-y-1">
+                  {lowIncomeTools.map((item) => {
+                    const isActive = pathname === item.href;
+                    return (
+                      <Link key={item.href} href={item.href}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition ${isActive ? 'bg-green-50 text-green-600 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}>
+                        <item.icon className="w-5 h-5" />
+                        <span>{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </nav>
+
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-3 mt-6">Help & Learn</div>
+                <nav className="space-y-1">
+                  {lowIncomeHelp.map((item) => {
+                    const isActive = pathname === item.href;
+                    return (
+                      <Link key={item.href} href={item.href}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition ${isActive ? 'bg-green-50 text-green-600 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}>
+                        <item.icon className="w-5 h-5" />
+                        <span>{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </nav>
+              </>
+            )}
+
+            {/* MIDDLE INCOME SIDEBAR */}
+            {tier === 'MIDDLE' && (
+              <>
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-3">Main Menu</div>
+                <nav className="space-y-1">
+                  {middleIncomeNav.map((item) => {
+                    const isActive = pathname === item.href;
+                    return (
+                      <Link key={item.href} href={item.href}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition ${isActive ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}>
+                        <item.icon className="w-5 h-5" />
+                        <span>{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </nav>
+
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-3 mt-6">Smart Tools</div>
+                <nav className="space-y-1">
+                  {smartTools.map((item) => {
+                    const isActive = pathname === item.href;
+                    return (
+                      <Link key={item.href} href={item.href}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition ${isActive ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}>
+                        <item.icon className="w-5 h-5" />
+                        <span>{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </nav>
+              </>
+            )}
+
+            {/* HIGH INCOME SIDEBAR */}
+            {tier === 'HIGH' && (
+              <>
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-3">Main Menu</div>
+                <nav className="space-y-1">
+                  {highIncomeNav.map((item) => {
+                    const isActive = pathname === item.href;
+                    return (
+                      <Link key={item.href} href={item.href}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition ${isActive ? 'bg-purple-50 text-purple-600 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}>
+                        <item.icon className="w-5 h-5" />
+                        <span>{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </nav>
+
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-3 mt-6">Smart Tools</div>
+                <nav className="space-y-1">
+                  {smartTools.map((item) => {
+                    const isActive = pathname === item.href;
+                    return (
+                      <Link key={item.href} href={item.href}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition ${isActive ? 'bg-purple-50 text-purple-600 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}>
+                        <item.icon className="w-5 h-5" />
+                        <span>{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </nav>
+              </>
+            )}
+
+            <div className="mt-6">
+              <Link href="/dashboard/settings"
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition ${
+                  pathname === '/dashboard/settings'
+                    ? tier === 'LOW' ? 'bg-green-50 text-green-600 font-medium' :
+                      tier === 'MIDDLE' ? 'bg-blue-50 text-blue-600 font-medium' :
+                      'bg-purple-50 text-purple-600 font-medium'
+                    : 'text-gray-700 hover:bg-gray-50'
+                }`}>
+                <Settings className="w-5 h-5" />
+                <span>Settings</span>
+              </Link>
+            </div>
+          </div>
+
+          <div className="p-4 border-t">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm">
+                {user?.firstName?.[0]}{user?.lastName?.[0]}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-sm text-gray-900 truncate">
+                  {user?.firstName} {user?.lastName}
+                </div>
+                <div className="text-xs text-gray-500 truncate">{user?.email}</div>
+              </div>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition">
+              <LogOut className="w-4 h-4" />
+              Logout
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <div className="pl-64">
+        <main className="p-8">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}

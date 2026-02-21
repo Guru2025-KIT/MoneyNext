@@ -1,0 +1,307 @@
+'use client';
+import DisclaimerModal from '@/components/DisclaimerModal';
+
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { transactionsApi } from '@/lib/api/transactions';
+import { accountsApi } from '@/lib/api/accounts';
+import { budgetsApi } from '@/lib/api/budgets';
+import { goalsApi } from '@/lib/api/goals';
+import { formatCurrency } from '@/lib/utils';
+import Image from 'next/image';
+import Link from 'next/link';
+import {
+  TrendingUp, TrendingDown, Wallet, Target, PieChart,
+  Calculator, Shield, ArrowUpRight, RefreshCw, Plus,
+  CreditCard, AlertCircle, Calendar, PiggyBank,
+  ShoppingBag, Car, Home, Utensils, BarChart3
+} from 'lucide-react';
+
+function NoFlickerBarChart({ data }: { data: { label: string; income: number; expense: number }[] }) {
+  const [tooltip, setTooltip] = useState({ text: '', visible: false });
+  const timer = useRef<any>(null);
+  const show = (text: string) => { if (timer.current) clearTimeout(timer.current); setTooltip({ text, visible: true }); };
+  const hide = () => { timer.current = setTimeout(() => setTooltip(t => ({ ...t, visible: false })), 100); };
+  if (!data.length || data.every(d => d.income === 0 && d.expense === 0))
+    return <div className="flex flex-col items-center justify-center h-40 text-gray-400"><Calendar className="w-8 h-8 mb-2 opacity-30" /><p className="text-sm">No data yet</p></div>;
+  const maxVal = Math.max(...data.flatMap(d => [d.income, d.expense]), 1);
+  const H = 130;
+  return (
+    <>
+      <DisclaimerModal />
+    <div className="w-full">
+      <div className="h-8 flex items-center justify-center mb-1">
+        <div className={`px-3 py-1 bg-gray-800 text-white text-xs font-semibold rounded-lg transition-opacity duration-150 ${tooltip.visible ? 'opacity-100' : 'opacity-0'}`}>{tooltip.text}</div>
+      </div>
+      <div className="flex items-end justify-between gap-1 px-1" style={{ height: H }}>
+        {data.map((item, i) => (
+          <div key={i} className="flex-1 flex items-end gap-0.5" style={{ height: H }}>
+            <div className="flex-1 rounded-t-md bg-gradient-to-t from-blue-600 to-blue-400 cursor-pointer hover:opacity-80 transition-opacity min-h-1"
+              style={{ height: Math.max((item.income / maxVal) * H, 3) }}
+              onMouseEnter={() => show(`${item.label} Income: ${formatCurrency(item.income)}`)} onMouseLeave={hide} />
+            <div className="flex-1 rounded-t-md bg-gradient-to-t from-red-500 to-red-300 cursor-pointer hover:opacity-80 transition-opacity min-h-1"
+              style={{ height: Math.max((item.expense / maxVal) * H, 3) }}
+              onMouseEnter={() => show(`${item.label} Expense: ${formatCurrency(item.expense)}`)} onMouseLeave={hide} />
+          </div>
+        ))}
+      </div>
+      <div className="flex justify-between mt-1 px-1">
+        {data.map((item, i) => <div key={i} className="flex-1 text-center"><span className="text-xs text-gray-500">{item.label}</span></div>)}
+      </div>
+      <div className="flex justify-center gap-4 mt-2">
+        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-blue-500" /><span className="text-xs text-gray-600">Income</span></div>
+        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-red-400" /><span className="text-xs text-gray-600">Expenses</span></div>
+      </div>
+    </div>
+      </>
+  );
+}
+
+function SpendingDonut({ data }: { data: { label: string; value: number; color: string }[] }) {
+  const [hov, setHov] = useState<number | null>(null);
+  if (!data.length || data.every(d => d.value === 0))
+    return <div className="flex flex-col items-center justify-center h-40 text-gray-400"><PieChart className="w-8 h-8 mb-2 opacity-30" /><p className="text-sm">No spending data</p></div>;
+  const total = data.reduce((s, d) => s + d.value, 0);
+  const r = 60; const circ = 2 * Math.PI * r; let off = 0;
+  return (
+    <>
+      <DisclaimerModal />
+    <div className="flex flex-col items-center">
+      <svg width="180" height="180" viewBox="0 0 180 180">
+        <circle cx="90" cy="90" r={r} fill="none" stroke="#f3f4f6" strokeWidth="24" />
+        {data.map((item, i) => {
+          const dash = (item.value / total) * circ; const gap = circ - dash; const cur = off; off += dash;
+          return <circle key={i} cx="90" cy="90" r={r} fill="none" stroke={item.color}
+            strokeWidth={hov === i ? 30 : 24} strokeDasharray={`${dash} ${gap}`}
+            strokeDashoffset={-cur + circ * 0.25} strokeLinecap="round"
+            style={{ transition: 'stroke-width 0.2s', cursor: 'pointer' }}
+            onMouseEnter={() => setHov(i)} onMouseLeave={() => setHov(null)} />;
+        })}
+        {hov !== null ? (<>
+          <text x="90" y="83" textAnchor="middle" fill="#111827" fontSize="9" fontWeight="700">{data[hov].label}</text>
+          <text x="90" y="96" textAnchor="middle" fill={data[hov].color} fontSize="10" fontWeight="700">{formatCurrency(data[hov].value)}</text>
+          <text x="90" y="108" textAnchor="middle" fill="#6B7280" fontSize="8">{((data[hov].value / total) * 100).toFixed(1)}%</text>
+        </>) : (<>
+          <text x="90" y="87" textAnchor="middle" fill="#6B7280" fontSize="9">Total</text>
+          <text x="90" y="100" textAnchor="middle" fill="#111827" fontSize="11" fontWeight="700">{formatCurrency(total)}</text>
+        </>)}
+      </svg>
+      <div className="flex flex-wrap gap-2 justify-center mt-1">
+        {data.map((item, i) => (
+          <div key={i} className={`flex items-center gap-1 px-2 py-0.5 rounded-lg cursor-pointer transition-colors ${hov === i ? 'bg-gray-100' : ''}`}
+            onMouseEnter={() => setHov(i)} onMouseLeave={() => setHov(null)}>
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+            <span className="text-xs text-gray-600">{item.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+      </>
+  );
+}
+
+function SIPCalculator() {
+  const [monthly, setMonthly] = useState(5000);
+  const [years, setYears] = useState(10);
+  const [rate, setRate] = useState(12);
+  const months = years * 12; const r = rate / 100 / 12;
+  const maturity = monthly * ((Math.pow(1 + r, months) - 1) / r) * (1 + r);
+  const invested = monthly * months;
+  return (
+    <>
+      <DisclaimerModal />
+    <div className="space-y-4">
+      <div>
+        <div className="flex justify-between mb-1"><label className="text-xs font-medium text-gray-600">Monthly SIP</label><span className="text-xs font-bold text-blue-600">{formatCurrency(monthly)}</span></div>
+        <input type="range" min="500" max="50000" step="500" value={monthly} onChange={e => setMonthly(Number(e.target.value))} className="w-full accent-blue-600" suppressHydrationWarning />
+      </div>
+      <div>
+        <div className="flex justify-between mb-1"><label className="text-xs font-medium text-gray-600">Duration</label><span className="text-xs font-bold text-blue-600">{years} years</span></div>
+        <input type="range" min="1" max="30" value={years} onChange={e => setYears(Number(e.target.value))} className="w-full accent-blue-600" suppressHydrationWarning />
+      </div>
+      <div>
+        <div className="flex justify-between mb-1"><label className="text-xs font-medium text-gray-600">Expected Return</label><span className="text-xs font-bold text-blue-600">{rate}%</span></div>
+        <input type="range" min="6" max="20" value={rate} onChange={e => setRate(Number(e.target.value))} className="w-full accent-blue-600" suppressHydrationWarning />
+      </div>
+      <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-100">
+        <div className="text-center p-2 bg-blue-50 rounded-xl"><p className="text-xs text-gray-500 mb-0.5">Invested</p><p className="text-xs font-bold text-blue-600">{formatCurrency(invested)}</p></div>
+        <div className="text-center p-2 bg-green-50 rounded-xl"><p className="text-xs text-gray-500 mb-0.5">Gains</p><p className="text-xs font-bold text-green-600">{formatCurrency(maturity - invested)}</p></div>
+        <div className="text-center p-2 bg-purple-50 rounded-xl"><p className="text-xs text-gray-500 mb-0.5">Maturity</p><p className="text-xs font-bold text-purple-600">{formatCurrency(maturity)}</p></div>
+      </div>
+    </div>
+      </>
+  );
+}
+
+export default function MiddleIncomeDashboard() {
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [budgets, setBudgets] = useState<any[]>([]);
+  const [goals, setGoals] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [error, setError] = useState('');
+
+  const loadData = useCallback(async () => {
+    try {
+      setError('');
+      const [acc, txn, bud, gol] = await Promise.all([accountsApi.getAll(), transactionsApi.getAll(), budgetsApi.getAll(), goalsApi.getAll()]);
+      setAccounts(acc); setTransactions(txn); setBudgets(bud); setGoals(gol); setLastUpdated(new Date());
+    } catch { setError('Failed to load data'); } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { loadData(); const i = setInterval(loadData, 30000); return () => clearInterval(i); }, [loadData]);
+
+  const now = new Date();
+  const curMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const monthTxns = transactions.filter(t => { const d = new Date(t.date); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === curMonth; });
+  const totalBalance = accounts.reduce((s, a) => s + Number(a.balance), 0);
+  const monthlyIncome = monthTxns.filter(t => t.type === 'INCOME').reduce((s, t) => s + Number(t.amount), 0);
+  const monthlyExpenses = monthTxns.filter(t => t.type === 'EXPENSE').reduce((s, t) => s + Number(t.amount), 0);
+  const savingsRate = monthlyIncome > 0 ? ((monthlyIncome - monthlyExpenses) / monthlyIncome * 100) : 0;
+  const spendByCategory = monthTxns.filter(t => t.type === 'EXPENSE').reduce((acc, t) => { const cat = t.category || 'Others'; acc[cat] = (acc[cat] || 0) + Number(t.amount); return acc; }, {} as Record<string, number>);
+  const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4'];
+  const donutData = Object.entries(spendByCategory).sort((a, b) => b[1] - a[1]).map(([label, value], i) => ({ label, value, color: colors[i % colors.length] }));
+  const last6 = Array.from({ length: 6 }, (_, i) => { const d = new Date(); d.setMonth(d.getMonth() - (5 - i)); return { key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, label: d.toLocaleDateString('en-US', { month: 'short' }) }; });
+  const trendData = last6.map(({ key, label }) => { const m = transactions.filter(t => { const d = new Date(t.date); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === key; }); return { label, income: m.filter(t => t.type === 'INCOME').reduce((s, t) => s + Number(t.amount), 0), expense: m.filter(t => t.type === 'EXPENSE').reduce((s, t) => s + Number(t.amount), 0) }; });
+  const categoryIcons: Record<string, any> = { Food: Utensils, Transport: Car, Bills: Home, Shopping: ShoppingBag, Health: Shield };
+
+  if (loading) return <div className="flex justify-center items-center min-h-screen"><div className="animate-spin rounded-full h-14 w-14 border-4 border-blue-200 border-t-blue-600"></div></div>;
+
+  return (
+    <>
+      <DisclaimerModal />
+    <div className="max-w-7xl mx-auto space-y-6 p-4 md:p-6">
+      {error && <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm"><AlertCircle className="w-5 h-5" />{error}<button onClick={loadData} className="ml-auto underline font-semibold">Retry</button></div>}
+
+      <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl p-6 text-white shadow-xl">
+        <div className="flex flex-wrap justify-between items-center gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-white/40 shadow-lg flex-shrink-0 bg-white">
+              <Image src="/logo.png" alt="MoneyNext" width={56} height={56} className="object-cover w-full h-full" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold">Middle Income Dashboard</h1>
+              <p className="text-blue-200 text-sm mt-0.5">Updated {lastUpdated.toLocaleTimeString()}</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={loadData} className="flex items-center gap-2 px-3 py-2 bg-white/20 hover:bg-white/30 rounded-xl text-white text-sm font-medium transition-colors"><RefreshCw className="w-4 h-4" />Refresh</button>
+            <Link href="/dashboard/transactions"><button className="flex items-center gap-2 px-4 py-2 bg-white text-blue-600 rounded-xl text-sm font-semibold hover:bg-blue-50 transition-colors"><Plus className="w-4 h-4" />Add Transaction</button></Link>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+        {[
+          { label: 'Monthly Income', value: formatCurrency(stats.income), sub: 'This month', icon: TrendingUp, bg: 'bg-emerald-100', color: 'text-emerald-600' },
+          { label: 'Monthly Expenses', value: formatCurrency(stats.expense), sub: 'This month', icon: TrendingDown, bg: 'bg-rose-100', color: 'text-rose-600' },
+          { label: 'Net Savings', value: formatCurrency(stats.income - stats.expense), sub: `${savingsRate.toFixed(1)}% rate`, icon: PiggyBank, bg: 'bg-blue-100', color: 'text-blue-600' },
+          { label: 'Total Balance', value: formatCurrency(stats.balance), sub: 'All accounts', icon: Wallet, bg: 'bg-purple-100', color: 'text-purple-600' },
+        ].map((card, i) => {
+          const Icon = card.icon;
+          return (
+            <div key={i} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+              <div className={`p-2.5 ${card.bg} rounded-xl w-fit mb-3`}>
+                <Icon className={`w-5 h-5 ${card.color}`} />
+              </div>
+              <p className="text-xs text-gray-500 mb-1">{card.label}</p>
+              <p className={`text-xl font-bold ${card.color}`}>{card.value}</p>
+              <p className="text-xs text-gray-400 mt-1">{card.sub}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+          <h3 className="font-bold text-gray-900 flex items-center gap-2 mb-2"><BarChart3 className="w-4 h-4 text-blue-600" />6-Month Trend</h3>
+          <NoFlickerBarChart data={trendData} />
+          <div className="mt-3 space-y-1.5 border-t border-gray-100 pt-3">
+            {trendData.filter(m => m.income > 0 || m.expense > 0).slice(-3).map((m, i) => (
+              <div key={i} className="grid grid-cols-3 text-xs gap-2 p-2 bg-gray-50 rounded-lg">
+                <span className="font-semibold text-gray-700">{m.label}</span>
+                <span className="text-blue-600 text-center">+{formatCurrency(m.income)}</span>
+                <span className="text-red-500 text-right">-{formatCurrency(m.expense)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="font-bold text-gray-900 flex items-center gap-2"><PieChart className="w-4 h-4 text-purple-600" />Spending Breakdown</h3>
+            <Link href="/dashboard/transactions"><span className="text-xs text-blue-600 font-semibold hover:underline">View All</span></Link>
+          </div>
+          <SpendingDonut data={donutData} />
+          {donutData.length > 0 && (
+            <div className="mt-3 space-y-1.5 border-t border-gray-100 pt-3">
+              {donutData.slice(0, 4).map((item, i) => (
+                <div key={i} className="flex justify-between text-xs">
+                  <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} /><span className="text-gray-600">{item.label}</span></div>
+                  <span className="font-semibold text-gray-900">{formatCurrency(item.value)}</span>
+                </div>
+              ))}
+              <div className="flex justify-between text-xs pt-1.5 border-t border-gray-100 font-bold">
+                <span className="text-gray-700">Total Spent</span>
+                <span className="text-red-600">{formatCurrency(monthlyExpenses)}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+          <h3 className="font-bold text-gray-900 flex items-center gap-2 mb-4"><Calculator className="w-4 h-4 text-green-600" />SIP Calculator</h3>
+          <SIPCalculator />
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-bold text-gray-900 flex items-center gap-2"><Wallet className="w-4 h-4 text-blue-600" />Accounts</h3>
+            <Link href="/dashboard/accounts"><span className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1">Manage<ArrowUpRight className="w-3 h-3" /></span></Link>
+          </div>
+          {accounts.length > 0 ? (
+            <div className="space-y-2">
+              {accounts.map((acc: any) => (
+                <div key={acc.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                  <div><p className="font-semibold text-gray-900 text-sm">{acc.name}</p><span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">{acc.type}</span></div>
+                  <p className={`font-bold ${Number(acc.balance) >= 0 ? 'text-gray-900' : 'text-red-600'}`}>{formatCurrency(acc.balance)}</p>
+                </div>
+              ))}
+              <div className="flex justify-between p-3 bg-blue-50 rounded-xl font-bold text-sm"><span className="text-gray-700">Total</span><span className="text-blue-600">{formatCurrency(totalBalance)}</span></div>
+            </div>
+          ) : (
+            <div className="text-center py-6 text-gray-400"><Wallet className="w-8 h-8 mx-auto mb-2 opacity-30" /><p className="text-sm mb-3">No accounts</p><Link href="/dashboard/accounts"><button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold">Add Account</button></Link></div>
+          )}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-bold text-gray-900 flex items-center gap-2"><CreditCard className="w-4 h-4 text-blue-600" />Recent Transactions</h3>
+          <Link href="/dashboard/transactions"><span className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1">View All<ArrowUpRight className="w-3 h-3" /></span></Link>
+        </div>
+        {transactions.length > 0 ? (
+          <div className="space-y-2">
+            {transactions.slice(0, 5).map((txn: any) => {
+              const Icon = categoryIcons[txn.category] || Wallet;
+              return (
+    <>
+      <DisclaimerModal />
+                <div key={txn.id} className="flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-xl ${txn.type === 'INCOME' ? 'bg-green-100' : 'bg-red-100'}`}><Icon className={`w-4 h-4 ${txn.type === 'INCOME' ? 'text-green-600' : 'text-red-600'}`} /></div>
+                    <div><p className="font-semibold text-gray-900 text-sm">{txn.description}</p><p className="text-xs text-gray-400">{txn.category || 'Uncategorized'} • {new Date(txn.date).toLocaleDateString()}</p></div>
+                  </div>
+                  <span className={`font-bold text-sm ${txn.type === 'INCOME' ? 'text-green-600' : 'text-red-600'}`}>{txn.type === 'INCOME' ? '+' : '-'}{formatCurrency(txn.amount)}</span>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-6 text-gray-400"><CreditCard className="w-8 h-8 mx-auto mb-2 opacity-30" /><p className="text-sm">No transactions yet</p></div>
+        )}
+      </div>
+    </div>
+      </>
+  );
+}

@@ -1,0 +1,426 @@
+'use client';
+
+import DisclaimerModal from '@/components/DisclaimerModal';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { accountsApi } from '@/lib/api/accounts';
+import { transactionsApi } from '@/lib/api/transactions';
+import { budgetsApi } from '@/lib/api/budgets';
+import { goalsApi } from '@/lib/api/goals';
+import { formatCurrency } from '@/lib/utils';
+import Image from 'next/image';
+import Link from 'next/link';
+import {
+  Wallet, TrendingUp, TrendingDown, Target, ShoppingBag, Car,
+  Home, Utensils, Plus, ArrowUpRight, Calendar, PiggyBank,
+  CreditCard, Shield, Gift, Book, RefreshCw, AlertCircle, Award,
+  Coins, Lock, Zap
+} from 'lucide-react';
+
+// Donut Chart
+function DonutChart({ data, size = 200 }: { data: { label: string; value: number; color: string }[]; size?: number }) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
+  if (!data.length || data.every(d => d.value === 0)) {
+    return (
+      <div className="flex flex-col items-center justify-center h-48 text-gray-400">
+        <ShoppingBag className="w-10 h-10 mb-2 opacity-30" />
+        <p className="text-sm">No spending data yet</p>
+      </div>
+    );
+  }
+
+  const total = data.reduce((s, d) => s + d.value, 0);
+  const radius = 70;
+  const circ = 2 * Math.PI * radius;
+  let offset = 0;
+
+  return (
+    <div className="flex flex-col items-center">
+      <svg width={size} height={size} viewBox="0 0 200 200">
+        <circle cx="100" cy="100" r={radius} fill="none" stroke="#f3f4f6" strokeWidth="28" />
+        {data.map((item, i) => {
+          const pct = item.value / total;
+          const dash = pct * circ;
+          const gap = circ - dash;
+          const cur = offset;
+          offset += dash;
+          return (
+            <circle key={i} cx="100" cy="100" r={radius}
+              fill="none" stroke={item.color}
+              strokeWidth={hoveredIndex === i ? 34 : 28}
+              strokeDasharray={`${dash} ${gap}`}
+              strokeDashoffset={-cur + circ * 0.25}
+              style={{ transition: 'stroke-width 0.2s ease', cursor: 'pointer' }}
+              onMouseEnter={() => setHoveredIndex(i)}
+              onMouseLeave={() => setHoveredIndex(null)}
+            />
+          );
+        })}
+        {hoveredIndex !== null ? (
+          <>
+            <text x="100" y="91" textAnchor="middle" fill="#111827" fontSize="11" fontWeight="700">{data[hoveredIndex].label}</text>
+            <text x="100" y="107" textAnchor="middle" fill="#3B82F6" fontSize="12" fontWeight="700">{formatCurrency(data[hoveredIndex].value)}</text>
+            <text x="100" y="121" textAnchor="middle" fill="#6B7280" fontSize="10">{((data[hoveredIndex].value / total) * 100).toFixed(1)}%</text>
+          </>
+        ) : (
+          <>
+            <text x="100" y="96" textAnchor="middle" fill="#6B7280" fontSize="11">Total Spent</text>
+            <text x="100" y="112" textAnchor="middle" fill="#111827" fontSize="13" fontWeight="700">{formatCurrency(total)}</text>
+          </>
+        )}
+      </svg>
+      <div className="flex flex-wrap gap-2 justify-center mt-2">
+        {data.map((item, i) => (
+          <div key={i}
+            className={`flex items-center gap-1.5 px-2 py-1 rounded-lg cursor-pointer transition-colors ${hoveredIndex === i ? 'bg-gray-100' : ''}`}
+            onMouseEnter={() => setHoveredIndex(i)}
+            onMouseLeave={() => setHoveredIndex(null)}>
+            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+            <span className="text-xs text-gray-600">{item.label}</span>
+            <span className="text-xs font-bold text-gray-800">{((item.value / total) * 100).toFixed(0)}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Bar Chart
+function BarChart({ data }: { data: { label: string; income: number; expense: number }[] }) {
+  const [tooltip, setTooltip] = useState<{ text: string; visible: boolean }>({ text: '', visible: false });
+  const timerRef = useRef<any>(null);
+
+  const showTooltip = (text: string) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setTooltip({ text, visible: true });
+  };
+
+  const hideTooltip = () => {
+    timerRef.current = setTimeout(() => {
+      setTooltip(t => ({ ...t, visible: false }));
+    }, 100);
+  };
+
+  if (!data.length || data.every(d => d.income === 0 && d.expense === 0)) {
+    return (
+      <div className="flex flex-col items-center justify-center h-48 text-gray-400">
+        <Calendar className="w-10 h-10 mb-2 opacity-30" />
+        <p className="text-sm">Add transactions to see trend</p>
+      </div>
+    );
+  }
+
+  const maxVal = Math.max(...data.flatMap(d => [d.income, d.expense]), 1);
+  const chartH = 150;
+
+  return (
+    <div className="w-full">
+      <div className="h-8 mb-1 flex items-center justify-center">
+        <div className={`px-3 py-1 bg-gray-800 text-white text-xs font-semibold rounded-lg transition-opacity duration-150 ${tooltip.visible ? 'opacity-100' : 'opacity-0'}`}>
+          {tooltip.text}
+        </div>
+      </div>
+
+      <div className="flex items-end justify-between gap-2 px-2" style={{ height: `${chartH}px` }}>
+        {data.map((item, i) => (
+          <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
+            <div className="w-full flex items-end justify-center gap-1" style={{ height: `${chartH}px` }}>
+              <div
+                className="flex-1 rounded-t-lg bg-gradient-to-t from-green-600 to-green-400 cursor-pointer hover:from-green-700 hover:to-green-500 transition-colors min-h-1"
+                style={{ height: `${Math.max((item.income / maxVal) * chartH, 4)}px` }}
+                onMouseEnter={() => showTooltip(`${item.label} Income: ${formatCurrency(item.income)}`)}
+                onMouseLeave={hideTooltip}
+              />
+              <div
+                className="flex-1 rounded-t-lg bg-gradient-to-t from-red-600 to-red-400 cursor-pointer hover:from-red-700 hover:to-red-500 transition-colors min-h-1"
+                style={{ height: `${Math.max((item.expense / maxVal) * chartH, 4)}px` }}
+                onMouseEnter={() => showTooltip(`${item.label} Expense: ${formatCurrency(item.expense)}`)}
+                onMouseLeave={hideTooltip}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex justify-between gap-2 px-2 mt-1">
+        {data.map((item, i) => (
+          <div key={i} className="flex-1 text-center">
+            <span className="text-xs text-gray-500 font-medium">{item.label}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex justify-center gap-6 mt-3">
+        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-green-500" /><span className="text-xs text-gray-600 font-medium">Income</span></div>
+        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-red-500" /><span className="text-xs text-gray-600 font-medium">Expenses</span></div>
+      </div>
+    </div>
+  );
+}
+
+export default function LowIncomeDashboard() {
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [budgets, setBudgets] = useState<any[]>([]);
+  const [goals, setGoals] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [error, setError] = useState('');
+
+  const loadData = useCallback(async () => {
+    try {
+      setError('');
+      const [acc, txn, bud, gol] = await Promise.all([
+        accountsApi.getAll(), transactionsApi.getAll(),
+        budgetsApi.getAll(), goalsApi.getAll(),
+      ]);
+      setAccounts(acc); setTransactions(txn); setBudgets(bud); setGoals(gol);
+      setLastUpdated(new Date());
+    } catch { setError('Failed to load data. Please refresh.'); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+    const interval = setInterval(loadData, 30000);
+    return () => clearInterval(interval);
+  }, [loadData]);
+
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  const monthlyTxns = transactions.filter(t => {
+    const d = new Date(t.date);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === currentMonth;
+  });
+
+  const totalBalance = accounts.reduce((s, a) => s + Number(a.balance), 0);
+  const monthlyIncome = monthlyTxns.filter(t => t.type === 'INCOME').reduce((s, t) => s + Number(t.amount), 0);
+  const monthlyExpenses = monthlyTxns.filter(t => t.type === 'EXPENSE').reduce((s, t) => s + Number(t.amount), 0);
+  const savingsRate = monthlyIncome > 0 ? ((monthlyIncome - monthlyExpenses) / monthlyIncome * 100) : 0;
+
+  const spendByCategory = monthlyTxns.filter(t => t.type === 'EXPENSE').reduce((acc, t) => {
+    const cat = t.category || 'Others';
+    acc[cat] = (acc[cat] || 0) + Number(t.amount);
+    return acc;
+  }, {} as Record<string, number>);
+
+  const donutColors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4'];
+  const donutData = Object.entries(spendByCategory).sort((a, b) => b[1] - a[1])
+    .map(([label, value], i) => ({ label, value, color: donutColors[i % donutColors.length] }));
+
+  const last6 = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(); d.setMonth(d.getMonth() - (5 - i));
+    return { key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, label: d.toLocaleDateString('en-US', { month: 'short' }) };
+  });
+
+  const trendData = last6.map(({ key, label }) => {
+    const m = transactions.filter(t => {
+      const d = new Date(t.date);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === key;
+    });
+    return {
+      label,
+      income: m.filter(t => t.type === 'INCOME').reduce((s, t) => s + Number(t.amount), 0),
+      expense: m.filter(t => t.type === 'EXPENSE').reduce((s, t) => s + Number(t.amount), 0),
+    };
+  });
+
+  if (loading) return (
+    <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-slate-50 via-green-50 to-emerald-50">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-16 w-16 border-4 border-green-200 border-t-green-600 mx-auto mb-4"></div>
+        <p className="text-gray-600 font-medium">Loading your dashboard...</p>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      <DisclaimerModal />
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-green-50 to-emerald-50 p-4 md:p-6">
+        <div className="max-w-7xl mx-auto space-y-6">
+
+          {error && (
+            <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
+              <AlertCircle className="w-5 h-5" />{error}
+              <button onClick={loadData} className="ml-auto text-sm font-semibold underline">Retry</button>
+            </div>
+          )}
+
+          {/* Header */}
+          <div className="backdrop-blur-xl bg-white/60 border border-white/40 rounded-2xl p-6 shadow-lg">
+            <div className="flex flex-wrap justify-between items-center gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-green-200 shadow-lg flex-shrink-0 bg-white">
+                  <Image src="/logo.png" alt="MoneyNext" width={56} height={56} className="object-cover w-full h-full" />
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">MoneyNext</h1>
+                  <p className="text-gray-500 text-sm flex items-center gap-1 mt-0.5">
+                    <RefreshCw className="w-3 h-3" />Updated {lastUpdated.toLocaleTimeString()}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={loadData}
+                  className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 text-sm font-medium">
+                  <RefreshCw className="w-4 h-4" />Refresh
+                </button>
+                <Link href="/dashboard/transactions">
+                  <button className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 text-sm font-semibold">
+                    <Plus className="w-4 h-4" />Add Transaction
+                  </button>
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          {/* Stats Cards */}
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+            {[
+              { label: 'Total Balance', value: formatCurrency(totalBalance), sub: `${accounts.length} accounts`, icon: Wallet, from: 'from-green-500/15', to: 'to-emerald-500/15', iconColor: 'text-green-600', bg: 'bg-green-500/20' },
+              { label: 'Monthly Income', value: formatCurrency(monthlyIncome), sub: `${monthlyTxns.filter(t => t.type === 'INCOME').length} transactions`, icon: TrendingUp, from: 'from-blue-500/15', to: 'to-cyan-500/15', iconColor: 'text-blue-600', bg: 'bg-blue-500/20', valueColor: 'text-blue-600' },
+              { label: 'Monthly Expenses', value: formatCurrency(monthlyExpenses), sub: `${monthlyTxns.filter(t => t.type === 'EXPENSE').length} transactions`, icon: TrendingDown, from: 'from-red-500/15', to: 'to-orange-500/15', iconColor: 'text-red-600', bg: 'bg-red-500/20', valueColor: 'text-red-600' },
+              { label: 'Net Savings', value: formatCurrency(monthlyIncome - monthlyExpenses), sub: savingsRate >= 20 ? 'Great savings!' : savingsRate >= 10 ? 'Keep it up!' : 'Spend less!', icon: PiggyBank, from: 'from-purple-500/15', to: 'to-pink-500/15', iconColor: 'text-purple-600', bg: 'bg-purple-500/20', badge: `${savingsRate.toFixed(0)}%`, valueColor: (monthlyIncome - monthlyExpenses) >= 0 ? 'text-purple-600' : 'text-red-600' },
+            ].map((card, i) => {
+              const Icon = card.icon;
+              return (
+                <div key={i} className={`backdrop-blur-xl bg-gradient-to-br ${card.from} ${card.to} border border-white/40 rounded-2xl p-5 shadow-lg hover:shadow-xl transition-shadow`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className={`p-2.5 ${card.bg} rounded-xl`}><Icon className={`w-5 h-5 ${card.iconColor}`} /></div>
+                    {card.badge && <span className={`text-xs font-bold px-2 py-1 rounded-lg ${savingsRate >= 20 ? 'text-green-600 bg-green-50' : savingsRate >= 10 ? 'text-yellow-600 bg-yellow-50' : 'text-red-600 bg-red-50'}`}>{card.badge}</span>}
+                  </div>
+                  <p className="text-xs text-gray-500 font-medium mb-1">{card.label}</p>
+                  <p className={`text-2xl font-bold ${card.valueColor || 'text-gray-900'}`}>{card.value}</p>
+                  <p className="text-xs text-gray-400 mt-1">{card.sub}</p>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* NEW FEATURES SECTION */}
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <Zap className="w-5 h-5 text-green-600" />
+              Exclusive Low-Income Tools
+            </h2>
+            <div className="grid gap-4 md:grid-cols-3">
+              {[
+                { href: '/dashboard/micro-savings', icon: Coins, title: 'Micro Savings', desc: 'Save ₹10/day automatically', badge: 'SAVE', color: 'green' },
+                { href: '/dashboard/expense-limiter', icon: Shield, title: 'Expense Limiter', desc: 'Daily spending limits', badge: 'PROTECT', color: 'blue' },
+                { href: '/dashboard/cash-envelope', icon: Wallet, title: 'Cash Envelope', desc: 'Digital envelope budgeting', badge: 'BUDGET', color: 'purple' },
+              ].map((feature, i) => {
+                const Icon = feature.icon;
+                return (
+                  <Link key={i} href={feature.href}>
+                    <div className={`bg-gradient-to-br ${
+                      feature.color === 'green' ? 'from-green-50 to-emerald-100 border-green-200 hover:border-green-300' :
+                      feature.color === 'blue' ? 'from-blue-50 to-cyan-100 border-blue-200 hover:border-blue-300' :
+                      'from-purple-50 to-pink-100 border-purple-200 hover:border-purple-300'
+                    } border-2 rounded-2xl p-6 hover:shadow-lg transition-all cursor-pointer group`}>
+                      <div className="flex justify-between items-start mb-3">
+                        <div className={`p-3 ${
+                          feature.color === 'green' ? 'bg-green-200' :
+                          feature.color === 'blue' ? 'bg-blue-200' :
+                          'bg-purple-200'
+                        } rounded-xl group-hover:scale-110 transition-transform`}>
+                          <Icon className={`w-6 h-6 ${
+                            feature.color === 'green' ? 'text-green-700' :
+                            feature.color === 'blue' ? 'text-blue-700' :
+                            'text-purple-700'
+                          }`} />
+                        </div>
+                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                          feature.color === 'green' ? 'bg-green-600 text-white' :
+                          feature.color === 'blue' ? 'bg-blue-600 text-white' :
+                          'bg-purple-600 text-white'
+                        }`}>{feature.badge}</span>
+                      </div>
+                      <h3 className="font-bold text-gray-900 text-lg mb-1">{feature.title}</h3>
+                      <p className="text-sm text-gray-600 mb-3">{feature.desc}</p>
+                      <span className={`text-sm font-semibold flex items-center gap-1 ${
+                        feature.color === 'green' ? 'text-green-700' :
+                        feature.color === 'blue' ? 'text-blue-700' :
+                        'text-purple-700'
+                      }`}>
+                        Open Tool <ArrowUpRight className="w-4 h-4" />
+                      </span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Charts Row */}
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="backdrop-blur-xl bg-white/60 border border-white/40 rounded-2xl p-6 shadow-lg">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                  <div className="p-1.5 bg-blue-100 rounded-lg"><ShoppingBag className="w-4 h-4 text-blue-600" /></div>
+                  This Month Spending
+                </h3>
+                <Link href="/dashboard/transactions"><span className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1">View All<ArrowUpRight className="w-3 h-3" /></span></Link>
+              </div>
+              <DonutChart data={donutData} size={220} />
+            </div>
+
+            <div className="backdrop-blur-xl bg-white/60 border border-white/40 rounded-2xl p-6 shadow-lg">
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                  <div className="p-1.5 bg-purple-100 rounded-lg"><Calendar className="w-4 h-4 text-purple-600" /></div>
+                  6-Month Trend
+                </h3>
+                <span className="text-xs text-gray-400">Hover bars</span>
+              </div>
+              <BarChart data={trendData} />
+            </div>
+          </div>
+
+          {/* Quick Links */}
+          <div className="grid gap-4 md:grid-cols-3">
+            {[
+              { href: '/dashboard/learn', icon: Book, title: 'Financial Education', desc: 'Learn budgeting basics', cta: 'Start Learning', color: 'blue' },
+              { href: '/dashboard/schemes', icon: Gift, title: 'Government Schemes', desc: 'Benefits you qualify for', cta: 'View Schemes', color: 'green' },
+              { href: '/dashboard/budgets', icon: Shield, title: 'Budget Protection', desc: 'Set spending alerts', cta: 'Manage Budgets', color: 'purple' },
+            ].map((item, i) => {
+              const Icon = item.icon;
+              return (
+                <Link key={i} href={item.href}>
+                  <div className={`backdrop-blur-xl bg-gradient-to-br ${
+                    item.color === 'blue' ? 'from-blue-500/10 to-cyan-500/10' :
+                    item.color === 'green' ? 'from-green-500/10 to-emerald-500/10' :
+                    'from-purple-500/10 to-pink-500/10'
+                  } border border-white/40 rounded-2xl p-5 shadow-lg hover:shadow-xl transition-shadow cursor-pointer group`}>
+                    <div className={`p-3 ${
+                      item.color === 'blue' ? 'bg-blue-500/15' :
+                      item.color === 'green' ? 'bg-green-500/15' :
+                      'bg-purple-500/15'
+                    } rounded-xl mb-3 w-fit group-hover:scale-110 transition-transform`}>
+                      <Icon className={`w-6 h-6 ${
+                        item.color === 'blue' ? 'text-blue-600' :
+                        item.color === 'green' ? 'text-green-600' :
+                        'text-purple-600'
+                      }`} />
+                    </div>
+                    <h3 className="font-bold text-gray-900 mb-1">{item.title}</h3>
+                    <p className="text-xs text-gray-500 mb-3">{item.desc}</p>
+                    <span className={`${
+                      item.color === 'blue' ? 'text-blue-600' :
+                      item.color === 'green' ? 'text-green-600' :
+                      'text-purple-600'
+                    } font-semibold text-xs flex items-center gap-1`}>
+                      {item.cta}<ArrowUpRight className="w-3 h-3" />
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+
+        </div>
+      </div>
+    </>
+  );
+}
