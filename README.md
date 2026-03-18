@@ -152,7 +152,7 @@ Fork → Branch → Commit → Push → PR
 
 ---
 
-## 📄 License
+##  📄 License
 
 MIT License
 
